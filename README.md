@@ -1,87 +1,98 @@
-# Bayesian Black-Box Optimisation of Eight Unknown Functions
+# Bayesian Black-Box Optimisation: Eight Unknown Functions
 
-**Author:** Caitlin Hale  
-**Project:** Imperial College London Machine Learning and Artificial Intelligence capstone
+**Imperial College London – Machine Learning and Artificial Intelligence Capstone**
 
-## Non-technical explanation of the project
+## Non-technical explanation
 
-This project explores how to find better solutions when the relationship between inputs and results is unknown and only a limited number of experiments is available. I worked with eight hidden functions, using previous results to decide which inputs to test next. A statistical model estimated promising locations and the uncertainty around them. Each new result helped me adjust the balance between exploring unfamiliar areas and improving known good solutions. The recorded best results improved for all eight functions. The project also showed that confident predictions can be misleading, making careful checks and transparent reporting essential throughout the optimisation process.
+This project was about finding the best possible inputs for eight functions without knowing how the functions actually worked. I could submit a limited number of guesses each week and use the results to decide what to try next. I used a Gaussian Process model to predict which inputs looked promising and how uncertain those predictions were. As I collected more data, I experimented with different ways of balancing exploration with improving the best results I already had. By the end of the challenge, I had improved the best recorded result for all eight functions, although not every weekly experiment worked as expected.
 
 ## Repository guide
 
-**Weeks 2–4 are combined in the root-level `function1.ipynb` to `function8.ipynb` files.** Each `functionX.ipynb` contains the early work for that function, including the combined Weeks 2–4 analysis. There are therefore no separate `week2/`, `week3/` or `week4/` folders. These notebooks should be read as the early optimisation history; the final query-selection work is in `week13/`.
+I kept the weekly work because it shows how my approach changed throughout the challenge, including experiments that didn't improve the score. The Week 13 notebooks show how I chose my final submissions.
 
-| File or folder | Contents |
+| File or folder | What's included |
 |---|---|
-| [function1.ipynb](function1.ipynb), [function2.ipynb](function2.ipynb), [function3.ipynb](function3.ipynb), [function4.ipynb](function4.ipynb), [function5.ipynb](function5.ipynb), [function6.ipynb](function6.ipynb), [function7.ipynb](function7.ipynb), [function8.ipynb](function8.ipynb) | Early notebooks, with Weeks 2–4 combined by function. |
-| [week1/](week1/) | Starting input and output datasets for all eight functions. |
-| [week5/](week5/) and [week6/](week6/) | Subsequent weekly optimisation notebooks. |
-| [week7/](week7/), [week8/](week8/), [week9/](week9/), [week10/](week10/), [week11/](week11/), [week12/](week12/) | Later weekly notebooks and cumulative data snapshots. |
-| [week13/](week13/) | Final query-selection notebooks, including the reasoning, diagnostics and selected inputs for each function. |
-| [DataSheet.md](DataSheet.md) | Data composition, collection, preprocessing, intended use and limitations. |
-| [ModelCard.md](ModelCard.md) | Model approach, performance diagnostics, assumptions and limitations. |
-| [BBO_capstone_results  (version 1).xlsb.xlsx](BBO_capstone_results%20%20%28version%201%29.xlsb.xlsx) | Results workbook recording the optimisation history. |
+| [`week1/`](week1/) | Starting input and output data for all eight functions. |
+| [`function1.ipynb`](function1.ipynb) to [`function8.ipynb`](function8.ipynb) | Early work for each function, covering Weeks 2–4. There are no separate Week 2, 3 or 4 folders. |
+| [`week5/`](week5/) to [`week12/`](week12/) | Weekly experiments, notebooks and saved data. |
+| [`week13/`](week13/) | Final-round notebooks, including model predictions, diagnostics and selected queries. |
+| [`DataSheet.md`](DataSheet.md) | Details about the data, how it was collected and handled, and its limitations. |
+| [`ModelCard.md`](ModelCard.md) | Description of the models, performance, assumptions and limitations. |
+| [`Results.xlsx`](Results.xlsx) | Results workbook included in the repository. |
+| [`BBO_capstone_results  (version 1).xlsb.xlsx`](BBO_capstone_results%20%20%28version%201%29.xlsb.xlsx) | Additional project results workbook. |
 
-For a quick review, start with the results below, then read the model card and the relevant `week13/functionX_week13.ipynb` notebook. To follow how the approach developed, read the root function notebooks and then the weekly folders in numerical order.
+**Where to start:** The results table below gives the overall outcome. For the final decision on a particular function, open the corresponding `week13/functionX_week13.ipynb`. For the earlier development of the project, work through the root notebooks and weekly folders in order.
 
 ## Data
 
-The data were supplied and generated through the course's black-box optimisation task. The starting observations are stored in `week1/`. Further observations were obtained by submitting input vectors to the course evaluation portal and recording the returned objective values.
+The starting observations were provided through the course's black-box optimisation challenge. I submitted new inputs to the course evaluation portal each week and recorded the output returned for each function. The underlying equations and gradients were not available to me.
 
-Each function has its own dataset:
+Each function uses two NumPy arrays:
 
-- `initial_inputs.npy`: an array of input vectors, with one observation per row.
-- `initial_outputs.npy`: the corresponding observed objective values.
+- `initial_inputs.npy` – the input vectors tested so far, with one point per row.
+- `initial_outputs.npy` – the corresponding objective values.
 
-Despite retaining the `initial_` filenames, the arrays in later weekly folders contain cumulative observations. They should not all be interpreted as the original starting data.
+The filenames still say `initial_` in later weeks, but those files contain **cumulative data**, not just the original observations. Inputs were restricted to the range `[0, 1]` in each dimension. The eight functions range from **2 to 8 dimensions**, and the datasets used to choose the final Week 13 points contained between **22 and 52 observations** per function.
 
-Inputs lie within `[0, 1]` in each dimension. The functions have between two and eight input dimensions. The starting datasets contain 10–40 observations per function; the data used for Week 13 contain 22–52 observations per function. These are small datasets and are included directly in the repository.
+The datasets are small enough to keep in the repository. One limitation is that, as the challenge progressed, a lot of my new points were deliberately concentrated near areas that were already performing well. That means the data became useful for local refinement but didn't describe the whole search space equally well. More details are in the [datasheet](DataSheet.md).
 
-The functions' internal formulas and gradients are unavailable. Consequently, the observations provide limited evidence about the full search space. Later observations also reflect the optimisation strategy's preference for promising regions, rather than an independent random sample. Further context is documented in [DataSheet.md](DataSheet.md).
+## Model and optimisation approach
 
-## Model
+My main method was **Bayesian optimisation using Gaussian Process (GP) regression**. I fitted a separate GP for each function. The idea was to build an approximate model of each unknown function so I could estimate both the likely result of an untested point and the uncertainty around that estimate.
 
-I fitted a separate Gaussian Process (GP) regression model for each function. The GP acts as a surrogate: it estimates an objective value and predictive uncertainty for untested inputs, helping choose the next experiment without access to the underlying function.
+I started with relatively simple GP models and experimented with different approaches as I went, including an alternative neural-network model and visual plots to help understand the results. The later GP notebooks mainly used a **Matérn 5/2 kernel with ARD lengthscales** and a white-noise term. ARD allowed different input dimensions to have different fitted lengthscales, which was useful when deciding how to search locally.
 
-Early experiments used an RBF kernel. Later notebooks use a constant-amplitude term multiplied by a Matérn 5/2 kernel with separate length scales for each input dimension (automatic relevance determination, or ARD), plus a white-noise term. This provides a flexible model of local variation while allowing different behaviour along different input dimensions.
+I compared **Expected Improvement (EI)**, **Upper Confidence Bound (UCB)** and the **highest predicted mean** when selecting points. Earlier on I was more willing to explore uncertain regions. Later, I introduced local trust regions, checks along individual input dimensions, comparisons with previous nearby observations and checks that new suggestions were not too close to existing points.
 
-Candidate selection evolved across the project. I compared Upper Confidence Bound (UCB), Expected Improvement (EI), posterior uncertainty and predicted mean. Candidate pools included global samples and local samples around the best observed input. Later rounds used tighter trust regions and directional checks where appropriate.
+Towards the final week, I generally favoured small, evidence-based moves around strong observations. I didn't always take the point with the highest EI or UCB; I also checked whether its direction made sense given what the previous queries had actually returned.
 
-For Function 1, early notebooks explored a logarithmic transformation; the final approach uses positive linear scaling to preserve the original maximisation objective. Function 5 uses manual output standardisation, with predictions interpreted on the original scale. Most other functions use the GP's internal output normalisation.
+There were a few function-specific decisions. For **Function 1**, I eventually stopped using the earlier logarithmic experiment and used positive linear scaling so that the original maximisation objective was preserved. For **Function 5**, I standardised the output manually before fitting its GP and converted predictions back to the original scale.
 
 ## Hyperparameter optimisation
 
-The GP's kernel amplitude, ARD length scales and white-noise level were fitted using scikit-learn's Gaussian Process optimiser, which maximises the log marginal likelihood within the bounds specified in each notebook. Later notebooks use multiple optimiser restarts to reduce dependence on a single starting point.
+I used scikit-learn's `GaussianProcessRegressor` to fit the kernel amplitude, ARD lengthscales and white-noise level by optimising the **log marginal likelihood**. Later notebooks used several optimiser restarts to reduce dependence on a single initial setting. The Matérn smoothness parameter was fixed at `nu=2.5`.
 
-The Matérn smoothness parameter is fixed at `nu=2.5`. Acquisition settings, such as the UCB exploration weight and EI improvement offset, and search settings, such as candidate counts and trust-region widths, were chosen and adjusted using the observed results and calibration diagnostics. These settings were adapted across functions and weeks rather than selected through one exhaustive hyperparameter search.
+There wasn't one set of search parameters that worked for every function. I adjusted the candidate pools, trust-region widths and exploration settings based on the amount of data available and what recent observations showed. I also compared earlier predictions with the actual values returned by the portal. When the GP had been inaccurate in a particular area, I treated its next recommendation more cautiously.
 
-Predictions from previous rounds were compared with the returned observations. Large errors relative to predicted uncertainty prompted more cautious local searches. The final round generally placed greater emphasis on exploiting established strong regions because there was no remaining round in which to benefit from additional exploration.
+These were practical adjustments during the challenge, rather than the result of an exhaustive hyperparameter sweep.
 
 ## Results
 
-The table reports the best observed objective in the starting data and in the cumulative data loaded by the Week 13 notebooks. **It describes observations available before the final Week 13 query, rather than predictions or returned results from that final query.** All functions are maximised, so a less negative value is an improvement for Functions 3 and 6.
+All eight functions were **maximisation** problems. Functions 3 and 6 returned negative values around their best observed points, so a result closer to zero (or positive) was better. The output scales are different between functions, so scores should be compared **within a function**, not across functions.
 
-| Function | Input dimensions | Best starting value | Best observed value entering Week 13 |
-|---|---:|---:|---:|
-| 1 | 2 | 7.71088e-16 | 6.59126e-12 |
-| 2 | 2 | 0.611205 | 0.679663 |
-| 3 | 3 | -0.0348353 | -0.00126784 |
-| 4 | 4 | -4.02554 | 0.670498 |
-| 5 | 4 | 1088.85962 | 8662.48250 |
-| 6 | 5 | -0.714265 | -0.195176 |
-| 7 | 6 | 1.364968 | 3.077057 |
-| 8 | 8 | 9.598482 | 9.999646 |
+The table shows the best values in the starting data, the best values entering Week 13, the **actual output returned from the final Week 13 query**, and the overall best observed value at the end of the project.
 
-The best observed value improved for every function, although individual queries did not always improve on the incumbent. Function 5's best observed input was the upper corner `[1, 1, 1, 1]`. Function 8 produced several closely spaced high-performing observations, supporting a focused local search. Function 1 remained difficult to model in absolute terms because its outputs span very different numerical scales.
+| Function | Dimensions | Best starting value | Best before Week 13 | Week 13 output | Final best observed |
+|---|---:|---:|---:|---:|---:|
+| 1 | 2 | 7.71088e-16 | 6.59126e-12 | **7.80718e-11** | **7.80718e-11** |
+| 2 | 2 | 0.611205 | 0.679663 | 0.634828 | 0.679663 |
+| 3 | 3 | -0.0348353 | -0.00126784 | -0.0129625 | -0.00126784 |
+| 4 | 4 | -4.02554 | 0.670498 | **0.730122** | **0.730122** |
+| 5 | 4 | 1088.85962 | 8662.48250 | 8284.89184 | 8662.48250 |
+| 6 | 5 | -0.714265 | -0.195176 | **-0.136427** | **-0.136427** |
+| 7 | 6 | 1.364968 | 3.077057 | **3.101315** | **3.101315** |
+| 8 | 8 | 9.598482 | 9.999646 | 9.998272 | 9.999646 |
 
-The main lesson was that predictive confidence must be checked against actual observations. Some functions showed substantial calibration errors, so uncertainty alone was not a reliable reason to move away from a proven region. Comparing acquisition rules, inspecting boundaries and using recent directional evidence helped inform later decisions.
+**Four of the final eight queries produced new best results:** Functions 1, 4, 6 and 7. I was especially pleased that the more conservative, single-coordinate decisions worked for Functions 4 and 6, while the GP's local highest-mean recommendation worked well for Function 7. Not everything worked: Function 3's final move performed noticeably worse than the incumbent, and Function 5 showed how quickly the score dropped when moving away from `[1, 1, 1, 1]`.
 
-These results establish the best values found within the available query budget. They do not establish the true global maxima, and objective values should be compared within each function because their scales differ. The Week 13 notebooks retain the final selected coordinates, predicted values and selection reasoning; a predicted improvement should not be treated as an observed improvement.
+This was probably my main takeaway from the project: a GP is useful for choosing what to try, but its predictions still need to be tested against what has actually happened. By the end I was using a combination of model predictions, uncertainty, local checks and past results instead of relying on a single acquisition score.
+
+These results are the best **observed within the available query budget**. They are not proof that the true global maximum was found for any function. The `week13/` input and output arrays are the data that were available **before** the final submissions; the final returned values are recorded in the table above and should not be mistaken for predictions from those notebooks.
 
 ## Viewing and running the notebooks
 
-GitHub can display the saved notebook code and outputs. For interactive use, open the notebooks in JupyterLab or Jupyter Notebook with Python, NumPy, SciPy and scikit-learn installed.
+GitHub should display the saved notebooks and their recorded outputs. To run them interactively, I used **Jupyter Notebook/JupyterLab**, with Python, NumPy, SciPy and scikit-learn.
 
-The notebooks use relative data paths. Run the Week 13 notebooks with `week13/` as the working directory so paths such as `function1/initial_inputs.npy` resolve correctly. The root notebooks use paths such as `function1/initial_inputs.npy`; when revisiting those early experiments, point them to the starting data under `week1/function1/` and the corresponding folders for the other functions. Check earlier weekly notebooks' load paths before running them, and restart the kernel before rerunning a notebook to avoid carrying state across experiments.
+The notebooks use **relative file paths**, so the working directory matters:
 
-Running a notebook fits the surrogate and generates candidate recommendations. Obtaining a new objective value requires access to the course's evaluation portal. Exact regenerated candidates may vary with software versions or unseeded sampling in early experiments. The saved outputs preserve the recorded analysis.
+1. For the final-round notebooks, open Jupyter with `week13/` as the working directory. Paths such as `function1/initial_inputs.npy` then resolve to the Week 13 cumulative data.
+2. The root-level notebooks are earlier experiments. Some references to `functionX/initial_inputs.npy` may need to be pointed at the corresponding files in `week1/functionX/` when rerunning them.
+3. Check the paths in other weekly notebooks before running them and restart the kernel between experiments so that variables from another notebook do not affect the result.
+
+Running the code can reproduce the surrogate-modelling and candidate-selection steps using the saved observations. **Evaluating a new candidate requires the course's external black-box portal**, which is not included in this repository. Some early randomly generated candidate lists may differ between runs, depending on random seeds and library versions. The saved notebooks show the analysis carried out during the project.
+
+## Project limitations
+
+The main limitations were the small evaluation budget, uneven coverage of the input space, uncertainty in the GP predictions and the fact that the actual black-box functions were unavailable. Some candidate-selection choices also involved judgement based on recent observations, rather than following one fully automatic algorithm. I have kept the weekly experiments so those decisions and their outcomes can be reviewed.
+
+For more detail, see [DataSheet.md](DataSheet.md) and [ModelCard.md](ModelCard.md).
