@@ -1,0 +1,10 @@
+# Core packages used by the BBO capstone notebooks
+numpy
+scipy
+scikit-learn
+matplotlib
+notebook
+
+# Optional: only needed for the neural-network experiment in
+# week5/function4_week5.ipynb
+# Install separately with: pip install tensorflow
